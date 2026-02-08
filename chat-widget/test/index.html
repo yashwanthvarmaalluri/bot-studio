@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Bot Studio Widget Demo</title>
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <style>
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: "Inter", system-ui, sans-serif;
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: linear-gradient(135deg, #e0f2fe, #e5e7eb);
+        color: #0f172a;
+      }
+      .card {
+        width: min(420px, calc(100vw - 48px));
+        background: rgba(255, 255, 255, 0.9);
+        border-radius: 20px;
+        padding: 32px;
+        text-align: center;
+        box-shadow: 0 24px 56px rgba(15, 23, 42, 0.2);
+      }
+      .card h1 {
+        margin: 0 0 12px;
+      }
+      .card p {
+        margin: 0;
+        line-height: 1.6;
+      }
+      .card .note {
+        margin-top: 18px;
+        font-size: 0.85rem;
+        color: #334155;
+      }
+      code {
+        background: rgba(15, 23, 42, 0.08);
+        padding: 2px 6px;
+        border-radius: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Bot Studio Widget</h1>
+      <p>
+        Serve this page and click the launcher bubble in the corner to chat with
+        your backend deployment.
+      </p>
+      <p class="note">
+        Update the <code>chatbotId</code> and <code>apiBaseUrl</code> below to
+        test other bots.
+      </p>
+    </div>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://bot-studio-dc6.pages.dev/index.global.js" defer></script>
+<script>
+  window.addEventListener('DOMContentLoaded', () => {
+    window.BotStudioWidget.init({
+        "chatbotId": "2699a800-4c11-4e72-924c-a54c12b83931",
+        "apiBaseUrl": "http://localhost:8000",
+        "launcherLabel": "Chat with support",
+        "title": "Resume",
+        "subtitle": "Powered by Bot Studio",
+        "welcomeMessage": "Hi there! I’m here to help. Ask me anything about our services.",
+        "accentColor": "#2563eb",
+        "theme": "light",
+        "position": "bottom-right",
+        "panelHeight": 550,
+      // Optional renderer: safely render Markdown content if available on host page
+      markdownRenderer: (text) => {
+        try {
+          if (window.marked && typeof window.marked.parse === 'function') {
+            return window.marked.parse(text ?? '')
+          }
+        } catch (e) {}
+        return text || ''
+      }
+    });
+  });
+</script>
+    
+  </body>
+</html>
+
