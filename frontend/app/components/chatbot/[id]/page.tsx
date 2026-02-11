@@ -77,7 +77,6 @@ export default function ChatbotDetailPage() {
       `  window.addEventListener('DOMContentLoaded', () => {`,
       `    window.BotStudioWidget.init({`,
       `${optionsInner ? optionsInner + ',' : ''}`,
-      `      // Optional renderer: safely render Markdown content if available on host page`,
       `      markdownRenderer: (text) => {`,
       `        try {`,
       `          if (window.marked && typeof window.marked.parse === 'function') {`,
