@@ -104,6 +104,23 @@ class SupabaseService:
         except Exception as e:
             print(f"Error getting chatbot: {e}")
             return None
+        
+    def get_chatbot_for_user(self, *, chatbot_id: str, user_id: str) -> Optional[Dict]:
+        """Get chatbot by ID, scoped to a specific user (ownership check)."""
+        try:
+            response = (
+                self.client.table("chatbots")
+                .select("*")
+                .eq("id", chatbot_id)
+                .eq("user_id", user_id)
+                .execute()
+            )
+            if response.data:
+                return response.data[0]
+            return None
+        except Exception as e:
+            print(f"Error getting chatbot for user: {e}")
+            return None
     
     def get_documents_by_chatbot(self, chatbot_id: str) -> List[Dict]:
         """Get all documents for a chatbot"""

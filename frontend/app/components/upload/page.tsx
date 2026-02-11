@@ -24,6 +24,7 @@ export default function UploadDocumentsPage() {
   const [loading, setLoading] = useState(true)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [uploadSuccess, setUploadSuccess] = useState(false)
 
   useEffect(() => {
     loadChatbots()
@@ -204,9 +205,9 @@ export default function UploadDocumentsPage() {
       if (failed.length > 0) {
         setError(`Failed to upload: ${failed.join(', ')}`)
       } else {
-        // Redirect to dashboard after successful upload
-        router.push('/components/dashboard')
-        router.refresh()
+        setFiles([])
+        setUploadSuccess(true)
+        setTimeout(() => setUploadSuccess(false), 3000)
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to upload files')
@@ -434,6 +435,9 @@ export default function UploadDocumentsPage() {
                   `${uploadMode === 'replace' ? 'Replace' : 'Upload'} Files`
                 )}
               </button>
+              {uploadSuccess && (
+                <span className="text-green-600 font-medium self-center">Uploaded!</span>
+              )}
             </div>
           )}
         </form>

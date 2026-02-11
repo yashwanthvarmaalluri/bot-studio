@@ -16,6 +16,11 @@ interface FileItem {
   }
 }
 
+/** Strip upload timestamp prefix (e.g. "1739123456789_report.pdf" → "report.pdf") to match Document Processing Status. */
+function displayFileName(storageName: string): string {
+  return storageName.replace(/^\d+_/, '') || storageName
+}
+
 export default function ChatbotDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -37,6 +42,8 @@ export default function ChatbotDetailPage() {
   const [documentStatuses, setDocumentStatuses] = useState<any[]>([])
   const [loadingStatuses, setLoadingStatuses] = useState(false)
   const [copySuccess, setCopySuccess] = useState<string | null>(null)
+  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [uploadSuccess, setUploadSuccess] = useState(false)
 
   // Backend API URL
   const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'https://bot-studio-zixn.onrender.com'
@@ -110,8 +117,17 @@ export default function ChatbotDetailPage() {
     
     setLoadingStatuses(true)
     try {
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
+      if (!accessToken) {
+        return
+      }
       const url = `${API_URL}/api/chatbot/${chatbotId}/documents`
-      const response = await fetch(url)
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
       
       if (response.ok) {
         const data = await response.json()
@@ -138,6 +154,12 @@ export default function ChatbotDetailPage() {
 
     try {
       // Start polling for status updates
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
+      if (!accessToken) {
+        setError('Your session is not available. Please refresh and try again.')
+        return
+      }
       const statusInterval = setInterval(() => {
         if (chatbotId) {
           loadDocumentStatuses()
@@ -146,6 +168,9 @@ export default function ChatbotDetailPage() {
 
       const response = await fetch(`${API_URL}/api/ingest/${chatbotId}`, {
         method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
       })
 
       // Clear interval once request completes
@@ -335,14 +360,14 @@ export default function ChatbotDetailPage() {
 
     setUploadingFiles([])
     await loadFiles(user.id)
+    await loadDocumentStatuses()
     setUploading(false)
 
     if (failed.length > 0) {
       setError(`Failed to upload: ${failed.join(', ')}`)
     } else {
-      // Redirect to dashboard after successful upload
-      router.push('/components/dashboard')
-      router.refresh()
+      setUploadSuccess(true)
+      setTimeout(() => setUploadSuccess(false), 3000)
     }
   }
 
@@ -352,9 +377,45 @@ export default function ChatbotDetailPage() {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return
 
+    const filePath = `${user.id}/${chatbotId}/${fileName}`
+
     try {
+      // Resolve document_metadata id so we can delete vectors from Zilliz (prefer from already-loaded list)
+      let documentId: string | null = (documentStatuses.find((d: { file_path?: string }) => d.file_path === filePath) as { id?: string } | undefined)?.id ?? null
+      if (!documentId) {
+        const { data: docRow } = await supabase
+          .from('document_metadata')
+          .select('id')
+          .eq('chatbot_id', chatbotId)
+          .eq('file_path', filePath)
+          .maybeSingle()
+        documentId = docRow?.id ?? null
+      }
+
+      if (documentId) {
+        const { data: { session } } = await supabase.auth.getSession()
+        const accessToken = session?.access_token
+        if (accessToken) {
+          const delRes = await fetch(`${API_URL}/api/chatbot/${chatbotId}/documents`, {
+            method: 'DELETE',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${accessToken}`,
+            },
+            body: JSON.stringify({ document_id: documentId }),
+          })
+          if (!delRes.ok) {
+            const errText = await delRes.text()
+            console.error('Failed to delete document vectors:', delRes.status, errText)
+            setError('File removed, but vector search may still use it until you run Ingest again.')
+          }
+        } else {
+          console.warn('No session token; skipping vector delete. Run Ingest after delete to refresh vectors.')
+        }
+      }
+
       // Delete file from storage
-      const filePath = `${user.id}/${chatbotId}/${fileName}`
       const { error } = await supabase.storage
         .from('chat-documents')
         .remove([filePath])
@@ -394,9 +455,8 @@ export default function ChatbotDetailPage() {
         throw new Error(error.message)
       }
 
-      // Redirect to dashboard after successful save
-      router.push('/components/dashboard')
-      router.refresh()
+      setSaveSuccess(true)
+      setTimeout(() => setSaveSuccess(false), 3000)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to update chatbot')
     } finally {
@@ -440,7 +500,6 @@ export default function ChatbotDetailPage() {
       }
 
       // Step 2: Delete all document_metadata records for this chatbot
-      // (These should cascade, but let's be explicit)
       const { error: metadataError } = await supabase
         .from('document_metadata')
         .delete()
@@ -448,11 +507,24 @@ export default function ChatbotDetailPage() {
 
       if (metadataError) {
         console.error('Error deleting document metadata:', metadataError)
-        // Continue with chatbot deletion
       }
 
-      // Step 3: Delete the chatbot record
-      // This should cascade to document_metadata if ON DELETE CASCADE is set
+      // Step 3: Delete Zilliz collection (vector DB) for this chatbot via backend
+      const { data: { session } } = await supabase.auth.getSession()
+      const accessToken = session?.access_token
+      if (accessToken) {
+        try {
+          await fetch(`${API_URL}/api/chatbot/${chatbotId}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${accessToken}` },
+          })
+        } catch (e) {
+          console.error('Error deleting Zilliz collection:', e)
+          // Continue so chatbot still gets deleted
+        }
+      }
+
+      // Step 4: Delete the chatbot record
       const { error: chatbotError } = await supabase
         .from('chatbots')
         .delete()
@@ -461,9 +533,6 @@ export default function ChatbotDetailPage() {
       if (chatbotError) {
         throw new Error(chatbotError.message)
       }
-
-      // Step 4: Note - Zilliz collection deletion would need to be done via backend API
-      // For now, we'll leave it (can be cleaned up later or via a backend endpoint)
 
       router.push('/components/dashboard')
       router.refresh()
@@ -617,12 +686,19 @@ export default function ChatbotDetailPage() {
                 </div>
                 <button
                   type="button"
-                  onClick={uploadFiles}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    uploadFiles()
+                  }}
                   disabled={uploading}
                   className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold py-2 px-6 rounded-xl hover:shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {uploading ? 'Uploading...' : 'Upload Files Now'}
                 </button>
+                {uploadSuccess && (
+                  <span className="text-green-600 font-medium">Uploaded!</span>
+                )}
               </div>
             )}
 
@@ -637,7 +713,7 @@ export default function ChatbotDetailPage() {
                       className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200"
                     >
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">{file.name}</p>
+                        <p className="text-sm font-medium text-gray-900 truncate" title={file.name}>{displayFileName(file.name)}</p>
                         <p className="text-xs text-gray-500">
                           {(file.metadata.size / 1024 / 1024).toFixed(2)} MB
                         </p>
@@ -689,6 +765,9 @@ export default function ChatbotDetailPage() {
                   'Save Changes'
                 )}
               </button>
+              {saveSuccess && (
+                <span className="text-green-600 font-medium">Saved!</span>
+              )}
             </div>
 
             {/* Document Status Display */}

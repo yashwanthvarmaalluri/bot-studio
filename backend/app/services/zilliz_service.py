@@ -338,14 +338,14 @@ class ZillizService:
         collection = self.get_collection(chatbot_id)
         
         if not collection:
+            print(f"[ZILLIZ] No collection for chatbot {chatbot_id}; nothing to delete for document {document_id}")
             return
         
-        # Delete by document_id
+        # Delete by document_id (VARCHAR filter)
         expr = f'document_id == "{document_id}"'
         collection.delete(expr)
         collection.flush()
-        
-        print(f"Deleted document {document_id} from chatbot {chatbot_id}")
+        print(f"[ZILLIZ] Deleted document {document_id} from chatbot {chatbot_id}")
     
     def get_collection_stats(self, chatbot_id: str) -> Dict:
         """Get statistics about a collection"""

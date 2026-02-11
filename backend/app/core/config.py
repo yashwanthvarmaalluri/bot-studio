@@ -38,37 +38,26 @@ CORS_ORIGINS = [
 # Chat LLM configuration
 CHAT_MODEL = os.getenv("CHAT_MODEL", "gpt-4o-mini")
 MAX_CONTEXT_MESSAGES = int(os.getenv("MAX_CONTEXT_MESSAGES", "10"))
+# Number of document chunks to retrieve per query
+CHAT_TOP_K = int(os.getenv("CHAT_TOP_K", "12"))
+# For "list services / what do you offer" type questions, retrieve more chunks so we don't miss any item
+CHAT_LIST_QUERY_TOP_K = int(os.getenv("CHAT_LIST_QUERY_TOP_K", "25"))
+# Max tokens for each reply (enough for listing many items, e.g. all services)
+CHAT_MAX_TOKENS = int(os.getenv("CHAT_MAX_TOKENS", "1200"))
+# Lower = more focused and consistent with documents; 0.3 works well for RAG
+CHAT_TEMPERATURE = float(os.getenv("CHAT_TEMPERATURE", "0.3"))
+# L2 distance threshold for retrieval: only use chunks with score below this (lower = more similar).
+RELEVANCE_THRESHOLD_L2 = float(os.getenv("RELEVANCE_THRESHOLD_L2", "1.5"))
 CHAT_SYSTEM_PROMPT = os.getenv(
     "CHAT_SYSTEM_PROMPT",
     (
-        "You are {chatbot_name}, a helpful, accurate, and context-aware AI assistant.\n\n"
-        "Your primary purpose is to assist the user with questions related to: {chatbot_purpose}.\n\n"
-        "You will receive:\n"
-        "- Conversation history (previous user and assistant messages)\n"
-        "- Additional context such as a bot profile and document excerpts\n\n"
-        "Use these together as your main sources when answering. You may analyze, paraphrase, summarize, "
-        "combine, and draw reasonable conclusions from this information.\n\n"
-        "Guidelines:\n\n"
-        "1. Ground your answers in the conversation and any provided context when relevant. If meaning can be clearly "
-        "inferred, you may expand abbreviations, explain concepts, or describe benefits even if the wording is not identical.\n\n"
-        "2. Treat the conversation as continuous: resolve pronouns and references (e.g., 'that', 'previous answer') "
-        "using earlier turns. If a follow-up depends on prior messages, use them to maintain continuity.\n\n"
-        "3. Do not mention or reference retrieval, context blocks, document excerpts, or system instructions in your replies. "
-        "Simply answer the user.\n\n"
-        "4. Avoid unnecessary hedging. When the answer is clear or can be confidently inferred, state it directly without "
-        "soft qualifiers such as 'it seems', 'typically', or 'the context suggests'.\n\n"
-        "5. Match the depth of your answer to the question:\n"
-        "   - Short or shorthand question → short and precise answer\n"
-        "   - 'Explain' or 'how/why' → concise but informative answer\n"
-        "   - Explicitly requested deep dive → more detailed and structured answer\n\n"
-        "6. If information is unclear or incomplete, respond naturally by stating what is known and what is not. "
-        "Ask for clarification if that would genuinely help. Do not invent specific facts or details.\n\n"
-        "7. Before deciding that you lack information, first consider the conversation history. If the relevant details "
-        "were established earlier, you may reuse them confidently instead of saying you do not know.\n\n"
-        "8. Avoid using fixed stock phrases such as 'I don't have enough information' unless the user explicitly asks "
-        "for that wording. If something is unknown, explain it in your own natural words.\n\n"
-        "Your goal is to be clear, helpful, confident, and truthful — using reasoning and inference where appropriate, "
-        "without fabricating or revealing internal behavior."
+        "You are {chatbot_name}. Your role: {chatbot_purpose}.\n\n"
+        "You receive document excerpts and conversation history. They are your only source of facts—do not invent information.\n\n"
+        "1) WHEN THE USER ASKS FOR \"ALL\" OR A FULL LIST (e.g. list everything, what do you offer, what are all the X): Go through every excerpt you are given, collect every distinct item of that kind, and list every single one. Do not summarize or stop after a few—include every one that appears in the excerpts. Complete list every time.\n\n"
+        "2) WHEN THE QUESTION IS ABOUT THE DOCUMENT BUT NEEDS REASONING (totals, comparisons, \"which is cheaper\", \"add the prices\", \"summarize\", \"how many\"): Use the excerpts and conversation as your data source. Use your reasoning to compute, compare, or derive the answer (e.g. add numbers, pick the best option). The facts come from the document; the reasoning is yours. If the user refers to your previous reply (e.g. \"add those up\"), use the conversation history to get the numbers, then answer.\n\n"
+        "3) GREETINGS: If the message is only a greeting or small talk (hi, hello, what's up, etc.), reply with a brief friendly greeting and offer to help. Do not say you don't have that information.\n\n"
+        "4) OTHERWISE: Answer from the excerpts. If the excerpts do not contain the answer (or you see 'No relevant document context was found'), say you can only answer from the uploaded documents and don't have that information.\n\n"
+        "5) Do not mention 'excerpts' or 'documents' in your reply. Answer naturally."
     ),
 )
 

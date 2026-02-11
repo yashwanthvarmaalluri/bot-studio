@@ -64,7 +64,7 @@ export default async function DashboardPage() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-2xl font-bold text-gray-800 mb-2">
-                Welcome back, {profile?.full_name || user.email?.split('@')[0]}! 👋
+                Welcome back, {profile?.full_name || user.email?.split('@')[0]}!
               </p>
               <p className="text-gray-600 flex items-center gap-2">
                 <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
