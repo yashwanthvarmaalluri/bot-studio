@@ -48,7 +48,7 @@ export default function ChatbotDetailPage() {
   // Backend API URL
   const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'https://bot-studio-zixn.onrender.com'
 
-  const WIDGET_SCRIPT_URL = process.env.NEXT_PUBLIC_WIDGET_SCRIPT_URL ?? 'https://bot-studio-dc6.pages.dev/index.global.js'
+  const WIDGET_SCRIPT_URL = process.env.NEXT_PUBLIC_WIDGET_SCRIPT_URL ?? 'https://bot-studio-6ba.pages.dev/index.global.js'
 
   const embedSnippet = useMemo(() => {
     const widgetOptions = {
